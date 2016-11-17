@@ -1,0 +1,16 @@
+{
+    "version": "0.1.0",
+    "summary": "An Elm library to help build optimistic UX",
+    "repository": "https://github.com/opsb/elm-optimist.git",
+    "license": "BSD3",
+    "source-directories": [
+        "src"
+    ],
+    "exposed-modules": [
+    ],
+    "dependencies": {
+        "saschatimme": "0.1.1 <= v < 1.0.0",
+        "elm-lang/core": "5.0.0 <= v < 6.0.0"
+    },
+    "elm-version": "0.18.0 <= v < 0.19.0"
+}
