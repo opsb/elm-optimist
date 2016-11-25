@@ -41,7 +41,7 @@ exports.config = {
     watched: [
       "web/static",
       "test/static",
-      "web/elm"
+      "elm"
     ],
 
     // Where to compile files to
@@ -55,9 +55,9 @@ exports.config = {
       ignore: [/web\/static\/vendor/]
     },
     elmBrunch: {
-      elmFolder: "web/elm",
+      elmFolder: "elm",
       mainModules: ["src/Chat.elm"],
-      outputFolder: "../static/vendor"
+      outputFolder: "../web/static/vendor"
     },
   },
 
