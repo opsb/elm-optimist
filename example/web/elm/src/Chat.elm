@@ -143,7 +143,7 @@ lobbySocket =
 
 {-| Initialize a socket with the default heartbeat intervall of 30 seconds
 -}
-socket : Socket
+socket : Socket Msg
 socket =
     Socket.init lobbySocket
 
