@@ -28,13 +28,13 @@ main =
 type alias Model =
     { userName : String
     , userNameTaken : Bool
-    , state : State
+    , status : Status
     , messages : List Message
     , composedMessage : String
     }
 
 
-type State
+type Status
     = JoiningLobby
     | JoinedLobby
     | LeavingLobby
@@ -51,7 +51,7 @@ initModel =
     { userName = "User1"
     , userNameTaken = False
     , messages = []
-    , state = LeftLobby
+    , status = LeftLobby
     , composedMessage = ""
     }
 
@@ -68,7 +68,7 @@ init =
 type Msg
     = UpdateUserName String
     | UserNameTaken
-    | UpdateState State
+    | UpdateStatus Status
     | UpdateComposedMessage String
     | NewMsg JD.Value
     | UserJoinedMsg JD.Value
@@ -81,11 +81,11 @@ update message model =
         UpdateUserName name ->
             { model | userName = name, userNameTaken = False } ! []
 
-        UpdateState state ->
-            { model | state = state } ! []
+        UpdateStatus status ->
+            { model | status = status } ! []
 
         UserNameTaken ->
-            { model | userNameTaken = True, state = LeftLobby } ! []
+            { model | userNameTaken = True, status = LeftLobby } ! []
 
         UpdateComposedMessage composedMessage ->
             { model | composedMessage = composedMessage } ! []
@@ -152,9 +152,9 @@ lobby : String -> Channel Msg
 lobby userName =
     Channel.init "room:lobby"
         |> Channel.withPayload (JE.object [ ( "user_name", JE.string userName ) ])
-        |> Channel.onJoin (\_ -> UpdateState JoinedLobby)
+        |> Channel.onJoin (\_ -> UpdateStatus JoinedLobby)
         |> Channel.onJoinError (\_ -> UserNameTaken)
-        |> Channel.onLeave (\_ -> UpdateState LeftLobby)
+        |> Channel.onLeave (\_ -> UpdateStatus LeftLobby)
         |> Channel.on "new_msg" NewMsg
         |> Channel.on "user_joined" UserJoinedMsg
         |> Channel.withDebug
@@ -162,7 +162,7 @@ lobby userName =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    case model.state of
+    case model.status of
         JoiningLobby ->
             Phoenix.connect socket [ lobby model.userName ]
 
@@ -192,7 +192,7 @@ enterLeaveLobby : Model -> Html Msg
 enterLeaveLobby model =
     let
         inputDisabled =
-            case model.state of
+            case model.status of
                 LeftLobby ->
                     False
 
@@ -221,18 +221,18 @@ button model =
         buttonClass disabled =
             Attr.classList [ ( "button", True ), ( "button-disabled", disabled ) ]
     in
-        case model.state of
+        case model.status of
             LeavingLobby ->
                 Html.button [ Attr.disabled True, buttonClass True ] [ Html.text "Leaving lobby..." ]
 
             LeftLobby ->
-                Html.button [ Events.onClick (UpdateState JoiningLobby), buttonClass False ] [ Html.text "Join lobby" ]
+                Html.button [ Events.onClick (UpdateStatus JoiningLobby), buttonClass False ] [ Html.text "Join lobby" ]
 
             JoiningLobby ->
                 Html.button [ Attr.disabled True, buttonClass True ] [ Html.text "Joning lobby..." ]
 
             JoinedLobby ->
-                Html.button [ buttonClass False, Events.onClick (UpdateState LeavingLobby) ] [ Html.text "Leave lobby" ]
+                Html.button [ buttonClass False, Events.onClick (UpdateStatus LeavingLobby) ] [ Html.text "Leave lobby" ]
 
 
 chatMessages : List Message -> Html Msg
@@ -258,10 +258,10 @@ chatMessage msg =
 
 
 composeMessage : Model -> Html Msg
-composeMessage { state, composedMessage } =
+composeMessage { status, composedMessage } =
     let
         cannotSend =
-            case state of
+            case status of
                 JoinedLobby ->
                     False
 
