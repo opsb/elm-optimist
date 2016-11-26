@@ -11,6 +11,7 @@ import Phoenix.Socket as Socket exposing (Socket)
 import Phoenix.Push as Push
 import State exposing (State)
 import Types exposing (..)
+import Store exposing (..)
 
 
 main : Program Never Model Msg
@@ -32,7 +33,7 @@ type alias Model =
     , userNameTaken : Bool
     , status : Status
     , composedMessage : String
-    , state : State
+    , store : Store State
     }
 
 
@@ -49,7 +50,7 @@ initModel =
     , userNameTaken = False
     , status = LeftLobby
     , composedMessage = ""
-    , state = State.init
+    , store = Store.init State.init
     }
 
 
@@ -70,6 +71,20 @@ type Msg
     | NewMsg JD.Value
     | UserJoinedMsg JD.Value
     | SendComposedMessage
+
+
+updateStore =
+    Store.update updateStoreModel
+
+
+updateStoreModel storeMsg storeModel =
+    case storeMsg of
+        AddMessage message ->
+            storeModel |> State.addMessage message
+
+
+type StoreMsg
+    = AddMessage Message
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -98,7 +113,7 @@ update message model =
         NewMsg payload ->
             case JD.decodeValue decodeNewMsg payload of
                 Ok msg ->
-                    { model | state = model.state |> State.addMessage msg } ! []
+                    { model | store = model.store |> updateStore (AddMessage msg) } ! []
 
                 Err err ->
                     model ! []
@@ -106,7 +121,7 @@ update message model =
         UserJoinedMsg payload ->
             case JD.decodeValue decodeUserJoinedMsg payload of
                 Ok msg ->
-                    { model | state = model.state |> State.addMessage msg } ! []
+                    { model | store = model.store |> updateStore (AddMessage msg) } ! []
 
                 Err err ->
                     model ! []
@@ -180,7 +195,7 @@ view : Model -> Html Msg
 view model =
     Html.div []
         [ enterLeaveLobby model
-        , chatMessages model.state.messages
+        , chatMessages model.store.optimistic.messages
         , composeMessage model
         ]
 
