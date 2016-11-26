@@ -9,6 +9,8 @@ import Phoenix
 import Phoenix.Channel as Channel exposing (Channel)
 import Phoenix.Socket as Socket exposing (Socket)
 import Phoenix.Push as Push
+import State exposing (State)
+import Types exposing (..)
 
 
 main : Program Never Model Msg
@@ -29,8 +31,8 @@ type alias Model =
     { userName : String
     , userNameTaken : Bool
     , status : Status
-    , messages : List Message
     , composedMessage : String
+    , state : State
     }
 
 
@@ -41,18 +43,13 @@ type Status
     | LeftLobby
 
 
-type Message
-    = Message { userName : String, message : String }
-    | UserJoined String
-
-
 initModel : Model
 initModel =
     { userName = "User1"
     , userNameTaken = False
-    , messages = []
     , status = LeftLobby
     , composedMessage = ""
+    , state = State.init
     }
 
 
@@ -101,7 +98,7 @@ update message model =
         NewMsg payload ->
             case JD.decodeValue decodeNewMsg payload of
                 Ok msg ->
-                    { model | messages = List.append model.messages [ msg ] } ! []
+                    { model | state = model.state |> State.addMessage msg } ! []
 
                 Err err ->
                     model ! []
@@ -109,7 +106,7 @@ update message model =
         UserJoinedMsg payload ->
             case JD.decodeValue decodeUserJoinedMsg payload of
                 Ok msg ->
-                    { model | messages = List.append model.messages [ msg ] } ! []
+                    { model | state = model.state |> State.addMessage msg } ! []
 
                 Err err ->
                     model ! []
@@ -183,7 +180,7 @@ view : Model -> Html Msg
 view model =
     Html.div []
         [ enterLeaveLobby model
-        , chatMessages model.messages
+        , chatMessages model.state.messages
         , composeMessage model
         ]
 
