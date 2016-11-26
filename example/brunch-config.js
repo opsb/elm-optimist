@@ -57,7 +57,8 @@ exports.config = {
     elmBrunch: {
       elmFolder: "elm",
       mainModules: ["src/Chat.elm"],
-      outputFolder: "../web/static/vendor"
+      outputFolder: "../web/static/vendor",
+      makeParameters : ['--debug']
     },
   },
 

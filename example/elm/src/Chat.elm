@@ -8,7 +8,7 @@ import Html.Events as Events
 import Phoenix
 import Phoenix.Channel as Channel exposing (Channel)
 import Phoenix.Socket as Socket exposing (Socket)
-import Phoenix.Push as Push
+import Phoenix.Push as Push exposing (Push)
 import State exposing (State)
 import Types exposing (..)
 import Store exposing (..)
@@ -33,7 +33,7 @@ type alias Model =
     , userNameTaken : Bool
     , status : Status
     , composedMessage : String
-    , store : Store State
+    , store : Store AppMsg State
     }
 
 
@@ -71,25 +71,41 @@ type Msg
     | NewMsg JD.Value
     | UserJoinedMsg JD.Value
     | SendComposedMessage
+    | StoreMsg (Store.Msg AppMsg)
 
 
-updateStore =
-    Store.update updateStoreModel
+updateStore msg =
+    Store.update lobbySocket updateState updateRemote msg
 
 
-updateStoreModel storeMsg storeModel =
+updateState : OptimistStatus -> AppMsg -> State -> State
+updateState optimistStatus storeMsg storeModel =
     case storeMsg of
         AddMessage message ->
             storeModel |> State.addMessage message
 
 
-type StoreMsg
+updateRemote : AppMsg -> State -> Maybe (Push (Store.Msg AppMsg))
+updateRemote storeMsg storeModel =
+    case storeMsg of
+        AddMessage msg ->
+            case msg of
+                Message { message, userName } ->
+                    Push.init "room:lobby" "new_msg"
+                        |> Push.withPayload (JE.object [ ( "msg", JE.string message ) ])
+                        |> Just
+
+                UserJoined _ ->
+                    Nothing
+
+
+type AppMsg
     = AddMessage Message
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update message model =
-    case message of
+    case (Debug.log "msg" message) of
         UpdateUserName name ->
             { model | userName = name, userNameTaken = False } ! []
 
@@ -104,16 +120,24 @@ update message model =
 
         SendComposedMessage ->
             let
-                push =
-                    Push.init "room:lobby" "new_msg"
-                        |> Push.withPayload (JE.object [ ( "msg", JE.string model.composedMessage ) ])
+                ( updatedStore, cmd ) =
+                    model.store
+                        |> updateStore (FromUI (AddMessage (Message { userName = model.userName, message = model.composedMessage })))
             in
-                { model | composedMessage = "" } ! [ Phoenix.push lobbySocket push ]
+                ( { model | store = updatedStore, composedMessage = "" }
+                , Cmd.map StoreMsg cmd
+                )
 
         NewMsg payload ->
             case JD.decodeValue decodeNewMsg payload of
                 Ok msg ->
-                    { model | store = model.store |> updateStore (AddMessage msg) } ! []
+                    let
+                        ( updatedStore, cmd ) =
+                            model.store |> updateStore (FromRemote (AddMessage msg))
+                    in
+                        ( { model | store = updatedStore }
+                        , Cmd.map StoreMsg cmd
+                        )
 
                 Err err ->
                     model ! []
@@ -121,10 +145,25 @@ update message model =
         UserJoinedMsg payload ->
             case JD.decodeValue decodeUserJoinedMsg payload of
                 Ok msg ->
-                    { model | store = model.store |> updateStore (AddMessage msg) } ! []
+                    let
+                        ( updatedStore, cmd ) =
+                            model.store |> updateStore (FromUI (AddMessage msg))
+                    in
+                        ( { model | store = updatedStore }
+                        , Cmd.map StoreMsg cmd
+                        )
 
                 Err err ->
                     model ! []
+
+        StoreMsg storeMsg ->
+            let
+                ( updatedStore, cmd ) =
+                    model.store |> updateStore storeMsg
+            in
+                ( { model | store = updatedStore }
+                , Cmd.map StoreMsg cmd
+                )
 
 
 
