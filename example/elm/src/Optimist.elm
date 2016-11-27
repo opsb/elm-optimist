@@ -1,4 +1,4 @@
-module Store exposing (..)
+module Optimist exposing (..)
 
 import Types exposing (..)
 import Phoenix
@@ -6,9 +6,9 @@ import Phoenix.Push exposing (Push)
 import Phoenix.Socket as Socket exposing (Socket)
 
 
-type alias Store appMsg model =
-    { optimistic : model
-    , pessimistic : model
+type alias Optimist appMsg appModel =
+    { optimistic : appModel
+    , pessimistic : appModel
     , queue : Queue appMsg
     }
 
@@ -19,9 +19,9 @@ type Msg appMsg
     | ConfirmRemote Int
 
 
-init initialModel =
-    { optimistic = initialModel
-    , pessimistic = initialModel
+init initialAppModel =
+    { optimistic = initialAppModel
+    , pessimistic = initialAppModel
     , queue = initQueue
     }
 
@@ -84,70 +84,70 @@ isQueueEmpty queue =
 
 update :
     String
-    -> (OptimistStatus -> appMsg -> model -> model)
-    -> (appMsg -> model -> Maybe (Push (Msg appMsg)))
+    -> (OptimistStatus -> appMsg -> appModel -> appModel)
+    -> (appMsg -> appModel -> Maybe (Push (Msg appMsg)))
     -> Msg appMsg
-    -> Store appMsg model
-    -> ( Store appMsg model, Cmd (Msg appMsg) )
-update endpoint updateModel updateRemote optimistMsg store =
+    -> Optimist appMsg appModel
+    -> ( Optimist appMsg appModel, Cmd (Msg appMsg) )
+update endpoint updateModel updateRemote optimistMsg appModel =
     let
-        ( updatedStore, cmd ) =
-            store |> applyMsg endpoint updateModel updateRemote optimistMsg
+        ( updatedOptimist, cmd ) =
+            appModel |> applyMsg endpoint updateModel updateRemote optimistMsg
     in
-        ( updatedStore
+        ( updatedOptimist
             |> applyConfirmed updateModel
             |> updateOptimisticIfAllSettled
         , cmd
         )
 
 
-updateOptimisticIfAllSettled store =
-    if store.queue |> isQueueEmpty then
-        { store | optimistic = store.pessimistic }
+updateOptimisticIfAllSettled optimist =
+    if optimist.queue |> isQueueEmpty then
+        { optimist | optimistic = optimist.pessimistic }
     else
-        store
+        optimist
 
 
-applyConfirmed updateModel store =
+applyConfirmed updateModel optimist =
     let
         queue =
-            store.queue
+            optimist.queue
     in
         case queue.items of
             [ Confirmed appMsg ] ->
-                { store
-                    | pessimistic = store.pessimistic |> updateModel Pessimistic appMsg
+                { optimist
+                    | pessimistic = optimist.pessimistic |> updateModel Pessimistic appMsg
                     , queue = { queue | items = [] }
                 }
                     |> applyConfirmed updateModel
 
             (Confirmed appMsg) :: appMsgs ->
-                { store
-                    | pessimistic = store.pessimistic |> updateModel Pessimistic appMsg
+                { optimist
+                    | pessimistic = optimist.pessimistic |> updateModel Pessimistic appMsg
                     , queue = { queue | items = appMsgs }
                 }
                     |> applyConfirmed updateModel
 
             _ ->
-                store
+                optimist
 
 
-applyMsg endpoint updateModel updateRemote optimistMsg store =
+applyMsg endpoint updateModel updateRemote optimistMsg optimist =
     case optimistMsg of
         FromUI appMsg ->
             let
                 maybePush =
-                    updateRemote appMsg store.optimistic
+                    updateRemote appMsg optimist.optimistic
 
                 updatedOptimistic =
-                    store.optimistic |> updateModel Optimistic appMsg
+                    optimist.optimistic |> updateModel Optimistic appMsg
 
                 ( cmd, updatedQueue2 ) =
                     case maybePush of
                         Just push ->
                             let
                                 ( updatedQueue, appMsgId ) =
-                                    store.queue
+                                    optimist.queue
                                         |> enqueuePending appMsg
                             in
                                 ( push
@@ -157,9 +157,9 @@ applyMsg endpoint updateModel updateRemote optimistMsg store =
                                 )
 
                         Nothing ->
-                            ( Cmd.none, store.queue |> enqueueConfirmed appMsg )
+                            ( Cmd.none, optimist.queue |> enqueueConfirmed appMsg )
             in
-                ( { store
+                ( { optimist
                     | optimistic = updatedOptimistic
                     , queue = updatedQueue2
                   }
@@ -169,9 +169,9 @@ applyMsg endpoint updateModel updateRemote optimistMsg store =
         FromRemote appMsg ->
             let
                 pessimistic =
-                    store.pessimistic |> updateModel Pessimistic appMsg
+                    optimist.pessimistic |> updateModel Pessimistic appMsg
             in
-                ( { store
+                ( { optimist
                     | pessimistic = pessimistic
                   }
                 , Cmd.none
@@ -180,15 +180,15 @@ applyMsg endpoint updateModel updateRemote optimistMsg store =
         ConfirmRemote appMsgId ->
             let
                 updatedQueue =
-                    store.queue |> dequeue appMsgId
+                    optimist.queue |> dequeue appMsgId
 
                 updatedOptimistic =
-                    if store.queue |> isQueueEmpty then
-                        store.pessimistic
+                    if optimist.queue |> isQueueEmpty then
+                        optimist.pessimistic
                     else
-                        store.optimistic
+                        optimist.optimistic
             in
-                ( { store
+                ( { optimist
                     | optimistic = updatedOptimistic
                     , queue = updatedQueue
                   }

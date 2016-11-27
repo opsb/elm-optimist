@@ -11,7 +11,7 @@ import Phoenix.Socket as Socket exposing (Socket)
 import Phoenix.Push as Push exposing (Push)
 import State exposing (State)
 import Types exposing (..)
-import Store exposing (..)
+import Optimist exposing (..)
 
 
 main : Program Never Model Msg
@@ -33,7 +33,7 @@ type alias Model =
     , userNameTaken : Bool
     , status : Status
     , composedMessage : String
-    , store : Store AppMsg State
+    , optimist : Optimist AppMsg State
     }
 
 
@@ -50,7 +50,7 @@ initModel =
     , userNameTaken = False
     , status = LeftLobby
     , composedMessage = ""
-    , store = Store.init State.init
+    , optimist = Optimist.init State.init
     }
 
 
@@ -71,23 +71,23 @@ type Msg
     | NewMsg JD.Value
     | UserJoinedMsg JD.Value
     | SendComposedMessage
-    | StoreMsg (Store.Msg AppMsg)
+    | OptimistMsg (Optimist.Msg AppMsg)
 
 
-updateStore msg =
-    Store.update lobbySocket updateState updateRemote msg
+updateOptimist msg =
+    Optimist.update lobbySocket updateState updateRemote msg
 
 
 updateState : OptimistStatus -> AppMsg -> State -> State
-updateState optimistStatus storeMsg storeModel =
-    case storeMsg of
+updateState optimistStatus optimistMsg optimistModel =
+    case optimistMsg of
         AddMessage message ->
-            storeModel |> State.addMessage message
+            optimistModel |> State.addMessage message
 
 
-updateRemote : AppMsg -> State -> Maybe (Push (Store.Msg AppMsg))
-updateRemote storeMsg storeModel =
-    case storeMsg of
+updateRemote : AppMsg -> State -> Maybe (Push (Optimist.Msg AppMsg))
+updateRemote optimistMsg optimistModel =
+    case optimistMsg of
         AddMessage msg ->
             case msg of
                 Message { message, userName } ->
@@ -120,23 +120,23 @@ update message model =
 
         SendComposedMessage ->
             let
-                ( updatedStore, cmd ) =
-                    model.store
-                        |> updateStore (FromUI (AddMessage (Message { userName = model.userName, message = model.composedMessage })))
+                ( updatedOptimist, cmd ) =
+                    model.optimist
+                        |> updateOptimist (FromUI (AddMessage (Message { userName = model.userName, message = model.composedMessage })))
             in
-                ( { model | store = updatedStore, composedMessage = "" }
-                , Cmd.map StoreMsg cmd
+                ( { model | optimist = updatedOptimist, composedMessage = "" }
+                , Cmd.map OptimistMsg cmd
                 )
 
         NewMsg payload ->
             case JD.decodeValue decodeNewMsg payload of
                 Ok msg ->
                     let
-                        ( updatedStore, cmd ) =
-                            model.store |> updateStore (FromRemote (AddMessage msg))
+                        ( updatedOptimist, cmd ) =
+                            model.optimist |> updateOptimist (FromRemote (AddMessage msg))
                     in
-                        ( { model | store = updatedStore }
-                        , Cmd.map StoreMsg cmd
+                        ( { model | optimist = updatedOptimist }
+                        , Cmd.map OptimistMsg cmd
                         )
 
                 Err err ->
@@ -146,23 +146,23 @@ update message model =
             case JD.decodeValue decodeUserJoinedMsg payload of
                 Ok msg ->
                     let
-                        ( updatedStore, cmd ) =
-                            model.store |> updateStore (FromUI (AddMessage msg))
+                        ( updatedOptimist, cmd ) =
+                            model.optimist |> updateOptimist (FromUI (AddMessage msg))
                     in
-                        ( { model | store = updatedStore }
-                        , Cmd.map StoreMsg cmd
+                        ( { model | optimist = updatedOptimist }
+                        , Cmd.map OptimistMsg cmd
                         )
 
                 Err err ->
                     model ! []
 
-        StoreMsg storeMsg ->
+        OptimistMsg optimistMsg ->
             let
-                ( updatedStore, cmd ) =
-                    model.store |> updateStore storeMsg
+                ( updatedOptimist, cmd ) =
+                    model.optimist |> updateOptimist optimistMsg
             in
-                ( { model | store = updatedStore }
-                , Cmd.map StoreMsg cmd
+                ( { model | optimist = updatedOptimist }
+                , Cmd.map OptimistMsg cmd
                 )
 
 
@@ -234,7 +234,7 @@ view : Model -> Html Msg
 view model =
     Html.div []
         [ enterLeaveLobby model
-        , chatMessages model.store.optimistic.messages
+        , chatMessages model.optimist.optimistic.messages
         , composeMessage model
         ]
 
